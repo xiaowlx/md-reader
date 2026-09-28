@@ -40,9 +40,12 @@
 
 ## 快速开始
 
-### 浏览器版
+### 直接下载
 
-直接用浏览器打开 `release/md-reader.html` 即可（单文件，无依赖、无需联网）。
+到 [**Releases**](https://github.com/xiaowlx/md-reader/releases) 下载：
+
+- **** —— 浏览器版。单文件、无依赖、无需联网，双击用浏览器打开即可
+- **** —— Windows 桌面版。解压后运行 `MdReader.exe`
 
 ### 从源码构建
 
