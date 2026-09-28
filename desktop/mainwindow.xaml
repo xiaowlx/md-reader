@@ -1,0 +1,130 @@
+<ui:FluentWindow x:Class="MdReader.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+                 Title="Markdown 阅读器"
+                 Width="1120" Height="740"
+                 MinWidth="720" MinHeight="460"
+                 ResizeMode="CanResize"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True">
+
+  <!--
+    标题栏配色全部走这里的 DynamicResource：网页侧会把当前风格的
+    背景 / 前景 / 边框 / 强调色通过消息通道发过来，ApplyChromeTheme() 替换这些资源，
+    这样原生标题栏和窗口内部永远是同一套颜色。
+    用 DynamicResource 而不是 StaticResource —— 静态引用拿不到后来替换的实例。
+  -->
+  <Window.Resources>
+    <SolidColorBrush x:Key="ChromeBg" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ChromeFg" Color="#24292F" />
+    <SolidColorBrush x:Key="ChromeMuted" Color="#888888" />
+    <SolidColorBrush x:Key="ChromeBorder" Color="#E3E6EC" />
+    <SolidColorBrush x:Key="ChromeAccent" Color="#3B82F6" />
+    <SolidColorBrush x:Key="ChromeAccentSoft" Color="#223B82F6" />
+
+    <!-- 标题栏上的文档标签。叉号用 Wpf.Ui 的 ui:Button + ui:SymbolIcon，
+         不再自己拼 ControlTemplate 画 Segoe MDL2 字形（那会「叉号太大」）。 -->
+    <DataTemplate x:Key="DocTabTemplate">
+      <Border x:Name="chip" Tag="{Binding Id}" CornerRadius="6" Margin="0,0,4,0"
+              Padding="9,2,3,2" Background="Transparent" Cursor="Hand"
+              MouseLeftButtonDown="OnTabClick">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock x:Name="label" Text="{Binding Label}" FontSize="12"
+                     MaxWidth="150" TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center"
+                     Foreground="{DynamicResource ChromeMuted}" />
+          <ui:Button x:Name="close" Tag="{Binding Id}" Click="OnTabCloseClick"
+                     Appearance="Transparent" Width="20" Height="20"
+                     Padding="0" Margin="4,0,0,0" Focusable="False">
+            <ui:Button.Icon>
+              <ui:SymbolIcon Symbol="Dismiss24" FontSize="11" />
+            </ui:Button.Icon>
+          </ui:Button>
+        </StackPanel>
+      </Border>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding IsActive}" Value="True">
+          <Setter TargetName="chip" Property="Background" Value="{DynamicResource ChromeAccentSoft}" />
+          <Setter TargetName="label" Property="Foreground" Value="{DynamicResource ChromeAccent}" />
+          <Setter TargetName="label" Property="FontWeight" Value="SemiBold" />
+        </DataTrigger>
+      </DataTemplate.Triggers>
+    </DataTemplate>
+  </Window.Resources>
+
+  <!--
+    根 Grid 也上底色：WebView2 那圈 6px 缩放边带露出的就是这里，
+    不设的话会露出 Wpf.Ui 的主题底色，和应用的风格对不上。
+    拖放也在这里接一层（另一层挂在 WebView2 上，见下）。
+  -->
+  <Grid x:Name="RootGrid" AllowDrop="True" DragOver="OnFileDragOver" Drop="OnFileDrop">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!--
+      标题栏直接用 Wpf.Ui 的 ui:TitleBar 作容器，不再自己拼 Grid。
+      它自带：拖拽窗口、双击最大化、系统菜单，以及三个窗口按钮的悬停 / 按下样式 ——
+      这些样式依赖 ui:TitleBar 提供的上下文，**单独放 ui:TitleBarButton 是没有悬停反馈的**（踩过）。
+      文档标签放在它的 Header 区。
+    -->
+    <ui:TitleBar Grid.Row="0" x:Name="TitleCtl" Height="34" Title="M↓">
+      <ui:TitleBar.Icon>
+        <ui:SymbolIcon Symbol="DocumentText24" Filled="True" FontSize="16" />
+      </ui:TitleBar.Icon>
+      <ui:TitleBar.TrailingContent>
+        <!-- 菜单按钮：ui:TitleBar 自己吃掉了右键，所以在标题栏上放一个显式入口 -->
+        <ui:Button x:Name="MenuBtn" Appearance="Transparent" Width="32" Height="28"
+                   Padding="0" Margin="0,0,4,0" Focusable="False"
+                   Click="OnMenuButtonClick">
+          <ui:Button.Icon>
+            <ui:SymbolIcon Symbol="Settings24" FontSize="15" />
+          </ui:Button.Icon>
+          <ui:Button.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="打开文件(_O)…" Click="OnMenuOpen" />
+              <MenuItem x:Name="MenuRecent" Header="最近打开(_R)" />
+              <Separator />
+              <MenuItem x:Name="MenuAssoc" Header="关联 .md 文件（在「打开方式」里可选本程序）"
+                        IsCheckable="True" Click="OnMenuAssoc" />
+              <Separator />
+              <MenuItem Header="关于(_A)…" Click="OnMenuAbout" />
+            </ContextMenu>
+          </ui:Button.ContextMenu>
+        </ui:Button>
+      </ui:TitleBar.TrailingContent>
+
+      <ui:TitleBar.Header>
+        <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+                      Focusable="False" HorizontalAlignment="Stretch">
+          <ItemsControl x:Name="DocTabs" VerticalAlignment="Center"
+                        ItemTemplate="{StaticResource DocTabTemplate}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+        </ScrollViewer>
+      </ui:TitleBar.Header>
+    </ui:TitleBar>
+
+    <!-- 边距 0：可视上完全铺满窗口，缩放热区改由窗口过程钩子提供（见 HookWebViewChild）。
+         原注释：Margin 留出 6px 边带交给 WPF 处理边缘缩放，必须与 MainWindow.ResizeBandDip 一致。
+         但上边距必须是 0 —— 窗口上边缘由标题栏那一行负责，这里再留 6px 就会在
+         标题栏和网页之间夹出一条窗口底色的横杠。
+         AllowDrop 必须挂在这一层：关掉 WebView2 的 AllowExternalDrop 之后拖放事件
+         落到 WPF 这边，而光标下最上层的 WPF 元素就是 WebView2 自己 ——
+         不在这里接住就会显示「禁止」光标。 -->
+    <wv2:WebView2 Grid.Row="1"
+                  x:Name="Web"
+                  Margin="4,0,4,4"
+                  AllowDrop="True"
+                  DragOver="OnFileDragOver"
+                  Drop="OnFileDrop"
+                  DefaultBackgroundColor="Transparent" />
+  </Grid>
+</ui:FluentWindow>
