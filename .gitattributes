@@ -1,0 +1,10 @@
+# 统一换行符：仓库内一律 LF，检出时按平台
+* text=auto eol=lf
+
+# 二进制
+*.ico binary
+*.png binary
+*.jpg binary
+*.zip binary
+*.dll binary
+*.exe binary
