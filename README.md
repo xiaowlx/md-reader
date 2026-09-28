@@ -44,8 +44,8 @@
 
 到 [**Releases**](https://github.com/xiaowlx/md-reader/releases) 下载：
 
-- **** —— 浏览器版。单文件、无依赖、无需联网，双击用浏览器打开即可
-- **** —— Windows 桌面版。解压后运行 `MdReader.exe`
+- **`md-reader.html`** —— 浏览器版。单文件、无依赖、无需联网，双击用浏览器打开即可
+- **`MdReader-win-x64.zip`** —— Windows 桌面版。解压后运行 `MdReader.exe`
 
 ### 从源码构建
 
